@@ -1,28 +1,27 @@
-# Agy app (skeleton v0.1)
+# Agy app (v0.2)
 
 Android front-end for `agy` running in Termux.
 
-## Step 1: start the bridge (in Termux)
+## 1. Start the bridge (in Termux)
 
-    pkg install python
-    python agy-bridge.py
+    cd ~/agy-app/bridge && python agy-bridge.py
 
-Copy `bridge/agy-bridge.py` to Termux first (e.g. via shared storage, or paste it with `nano`).
-Test it: `curl http://127.0.0.1:8765/health`
+Test: `curl http://127.0.0.1:8765/health`
 
-## Step 2: build the app
+## 2. Build the app
 
-Open this folder in Android Studio, let Gradle sync, then Run (or Build > Build APK).
+Push to GitHub; the "Build APK" workflow produces `app-debug.apk` under Actions > Artifacts.
 
 ## What works now
 
-- On launch the app checks `http://127.0.0.1:8765/health`
-- Connected: chat-style screen (status dot shows whether `agy` was found)
-- Not connected: setup screen with the command to run and a Retry button
+- Connection check on launch, with a setup screen if the bridge is down
+- Live chat: each message runs `agy -p ... --output-format stream-json`; replies stream in
+- Conversation continues across messages (`--conversation <id>`); "+" starts a new chat
+- Tool calls shown as expandable cards; markdown and code blocks (with copy button)
+- Stop button cancels the running turn
 
 ## Next steps
 
-1. Bridge: PTY + WebSocket running `agy`
-2. App: send/receive messages over the socket
-3. Markdown + code block rendering, terminal view toggle
-4. Voice input, image attach/display
+1. Permission approvals as tap-to-approve cards
+2. Voice input, image attach/display
+3. Terminal view toggle, multiple sessions

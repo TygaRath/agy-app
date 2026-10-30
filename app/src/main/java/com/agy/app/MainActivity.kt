@@ -27,13 +27,23 @@ class MainActivity : ComponentActivity() {
             AgyTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val conn by vm.conn.collectAsStateWithLifecycle()
-                    val messages by vm.messages.collectAsStateWithLifecycle()
+                    val items by vm.items.collectAsStateWithLifecycle()
+                    val busy by vm.busy.collectAsStateWithLifecycle()
                     val body = Modifier.systemBarsPadding().imePadding()
 
                     when (val c = conn) {
                         is ConnState.Checking -> CheckingScreen(body)
                         is ConnState.Disconnected -> DisconnectedScreen(c.reason, vm::recheck, body)
-                        is ConnState.Connected -> ChatScreen(c.status, messages, vm::send, vm::recheck, body)
+                        is ConnState.Connected -> ChatScreen(
+                            status = c.status,
+                            items = items,
+                            busy = busy,
+                            onSend = vm::send,
+                            onStop = vm::stop,
+                            onNewChat = vm::newChat,
+                            onRecheck = vm::recheck,
+                            modifier = body,
+                        )
                     }
                 }
             }
