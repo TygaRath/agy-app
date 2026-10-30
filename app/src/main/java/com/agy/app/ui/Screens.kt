@@ -2,9 +2,12 @@ package com.agy.app.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -76,13 +79,7 @@ fun DisconnectedScreen(reason: String, onRetry: () -> Unit, modifier: Modifier =
         Spacer(Modifier.height(24.dp))
         Text("To fix, open Termux and run:", color = Muted)
         Spacer(Modifier.height(8.dp))
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Panel).padding(16.dp)
-        ) {
-            SelectionContainer {
-                Text(SETUP_CMD, fontFamily = FontFamily.Monospace, color = Accent)
-            }
-        }
+        CodeBox(SETUP_CMD)
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = {
             clipboard.setText(AnnotatedString(SETUP_CMD))
@@ -99,4 +96,153 @@ fun DisconnectedScreen(reason: String, onRetry: () -> Unit, modifier: Modifier =
             Text("Retry")
         }
     }
+}
+
+@Composable
+private fun CodeBox(text: String) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Panel).padding(16.dp)) {
+        SelectionContainer {
+            Text(text, fontFamily = FontFamily.Monospace, color = Accent, fontSize = 13.sp)
+        }
+    }
+}
+
+// ---- Pairing ---------------------------------------------------------------------
+
+@Composable
+fun TokenScreen(wrong: Boolean, onSave: (String) -> Unit, modifier: Modifier = Modifier) {
+    val clipboard = LocalClipboardManager.current
+    var token by remember { mutableStateOf("") }
+    Column(
+        modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("Pair with Termux", fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "The bridge uses a private token so other apps on your phone can't control agy. " +
+                "It's printed when the bridge starts. To show it again, run this in Termux:",
+            color = Muted,
+        )
+        Spacer(Modifier.height(12.dp))
+        CodeBox("cat ~/.agy-bridge-token")
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = token,
+            onValueChange = { token = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Pairing token") },
+        )
+        if (wrong) {
+            Spacer(Modifier.height(6.dp))
+            Text("That token was rejected. Check it and try again.", color = Bad, fontSize = 13.sp)
+        }
+        TextButton(onClick = { clipboard.getText()?.text?.let { token = it.trim() } }) {
+            Text("Paste from clipboard")
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { onSave(token) },
+            enabled = token.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Connect") }
+    }
+}
+
+// ---- Settings --------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsDialog(
+    cwd: String,
+    model: String,
+    effort: String,
+    agent: String,
+    allowRuleCount: Int,
+    onSave: (cwd: String, model: String, effort: String, agent: String) -> Unit,
+    onClearRules: () -> Unit,
+    onRecheck: () -> Unit,
+    onResetToken: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var c by remember { mutableStateOf(cwd) }
+    var m by remember { mutableStateOf(model) }
+    var e by remember { mutableStateOf(effort) }
+    var a by remember { mutableStateOf(agent) }
+    val efforts = listOf("" to "Default", "low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Settings") },
+        confirmButton = { TextButton(onClick = { onSave(c.trim(), m.trim(), e, a.trim()) }) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = c, onValueChange = { c = it }, singleLine = true,
+                    label = { Text("Working folder") }, placeholder = { Text("~ (home)") },
+                )
+                OutlinedTextField(
+                    value = m, onValueChange = { m = it }, singleLine = true,
+                    label = { Text("Model (optional)") },
+                )
+                OutlinedTextField(
+                    value = a, onValueChange = { a = it }, singleLine = true,
+                    label = { Text("Agent (optional)") },
+                )
+                Text("Reasoning effort", color = Muted, fontSize = 12.sp)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((value, label) in efforts) {
+                        FilterChip(selected = e == value, onClick = { e = value }, label = { Text(label) })
+                    }
+                }
+                if (allowRuleCount > 0) {
+                    TextButton(onClick = onClearRules) { Text("Clear $allowRuleCount always-allowed rule(s)") }
+                }
+                TextButton(onClick = onRecheck) { Text("Recheck connection") }
+                TextButton(onClick = onResetToken) { Text("Change pairing token") }
+            }
+        },
+    )
+}
+
+// ---- Tools: plugins / agents / MCP / models ----------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ToolsDialog(load: suspend (String) -> String, onDismiss: () -> Unit) {
+    val tabs = listOf("plugins" to "Plugins", "agents" to "Agents", "mcp" to "MCP", "models" to "Models")
+    var tab by remember { mutableStateOf("plugins") }
+    var output by remember { mutableStateOf("Loading…") }
+    LaunchedEffect(tab) {
+        output = "Loading…"
+        output = load(tab)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("agy tools") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((value, label) in tabs) {
+                        FilterChip(selected = tab == value, onClick = { tab = value }, label = { Text(label) })
+                    }
+                }
+                Box(
+                    Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(Panel).padding(12.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    SelectionContainer {
+                        Text(output, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                    }
+                }
+            }
+        },
+    )
 }

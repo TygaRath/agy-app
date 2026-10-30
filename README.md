@@ -1,4 +1,4 @@
-# Agy app (v0.2)
+# Agy app (v0.3)
 
 Android front-end for `agy` running in Termux.
 
@@ -6,22 +6,25 @@ Android front-end for `agy` running in Termux.
 
     cd ~/agy-app/bridge && python agy-bridge.py
 
-Test: `curl http://127.0.0.1:8765/health`
+First run prints a pairing token (also in ~/.agy-bridge-token). Paste it into the app once.
 
 ## 2. Build the app
 
 Push to GitHub; the "Build APK" workflow produces `app-debug.apk` under Actions > Artifacts.
 
-## What works now
+## Features
 
-- Connection check on launch, with a setup screen if the bridge is down
-- Live chat: each message runs `agy -p ... --output-format stream-json`; replies stream in
-- Conversation continues across messages (`--conversation <id>`); "+" starts a new chat
-- Tool calls shown as expandable cards; markdown and code blocks (with copy button)
-- Stop button cancels the running turn
+- Live chat over `agy -p --output-format stream-json`; conversations continue (`--conversation`)
+- Tool-call cards, markdown, code blocks with copy
+- Approval cards: agy soft-denies anything needing approval in print mode, so the app shows
+  "Allow once / Always / Deny" and retries the turn with an allow rule (`--settings`)
+- Modes: Ask / Accept edits / Auto / Plan
+- Voice input (system speech dialog), image attach (uploaded to ~/agy-uploads), images shown inline
+- Type `/` for app commands (/new /settings /tools) and your agy skills
+- Tools screen: plugins, agents, MCP servers, models (read-only)
+- Settings: working folder, model, agent, reasoning effort, pairing token
 
-## Next steps
+## Known limits (print mode)
 
-1. Permission approvals as tap-to-approve cards
-2. Voice input, image attach/display
-3. Terminal view toggle, multiple sessions
+- agy's own `ask_question` is auto-skipped in print mode, so questions arrive as normal chat text
+- Built-in TUI slash commands (/config, /agents panel, ...) don't run in print mode

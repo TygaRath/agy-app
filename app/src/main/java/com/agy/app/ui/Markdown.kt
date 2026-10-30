@@ -1,6 +1,9 @@
 package com.agy.app.ui
 
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import com.agy.app.BridgeClient
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -28,7 +31,15 @@ import androidx.compose.ui.unit.sp
 private sealed interface Block {
     data class Prose(val text: String) : Block
     data class Code(val lang: String, val code: String) : Block
+    data class Image(val src: String) : Block
 }
+
+// A line that is only an image, or only a link to an image file.
+private val imageLine = Regex("""^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$""")
+private val imageLink = Regex(
+    """^\s*\[([^\]]*)\]\(([^)]+\.(?:png|jpe?g|gif|webp|bmp))\)\s*$""",
+    RegexOption.IGNORE_CASE,
+)
 
 /** Splits text into prose and ``` fenced code blocks. An unclosed fence (mid-stream) still renders as code. */
 private fun parseBlocks(text: String): List<Block> {
@@ -51,6 +62,14 @@ private fun parseBlocks(text: String): List<Block> {
             flush()
             inCode = !inCode
             lang = if (inCode) line.trim().removePrefix("```").trim() else ""
+        } else if (!inCode) {
+            val m = imageLine.matchEntire(line) ?: imageLink.matchEntire(line)
+            if (m != null) {
+                flush()
+                blocks += Block.Image(m.groupValues[2].trim())
+            } else {
+                buf.append(line).append('\n')
+            }
         } else {
             buf.append(line).append('\n')
         }
@@ -106,9 +125,25 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                     Text(prose(block.text), fontSize = 15.sp, lineHeight = 22.sp)
                 }
                 is Block.Code -> CodeBlock(block.lang, block.code)
+                is Block.Image -> AgentImage(block.src)
             }
         }
     }
+}
+
+@Composable
+private fun AgentImage(src: String) {
+    val token = LocalBridgeToken.current
+    val model: String = if (src.startsWith("http://") || src.startsWith("https://")) {
+        src
+    } else {
+        BridgeClient.fileUrl(Uri.decode(src.removePrefix("file://")), token)
+    }
+    ImageThumb(
+        model = model,
+        modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+        contentScale = ContentScale.Fit,
+    )
 }
 
 @Composable
